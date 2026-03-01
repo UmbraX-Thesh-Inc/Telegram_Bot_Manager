@@ -3,6 +3,8 @@ services:
     name: github-telegram-bot
     env: python
     plan: free
+    runtime: python
+    pythonVersion: "3.11.9"
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
