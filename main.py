@@ -37,8 +37,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # --- Filtro de usuarios ---
-def user_filter(update: Update) -> bool:
-    return update.effective_user.id in ALLOWED_USERS
+#def user_filter(update: Update) -> bool:
+   # return update.effective_user.id in ALLOWED_USERS
 
 # --- MAIN ---
 def main():
