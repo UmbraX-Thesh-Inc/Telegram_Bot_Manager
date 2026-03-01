@@ -46,10 +46,10 @@ def main_menu():
     return markup
 
 # === SEGURIDAD ===
-@bot.message_handler(func=lambda m: m.from_user.id not in ALLOWED_IDS)
-def access_denied(message):
-    print(f"⚠️ Bloqueado: {message.from_user.id}")
-    bot.reply_to(message, "🚫 No tienes permiso para usar este bot.")
+#@bot.message_handler(func=lambda m: m.from_user.id not in ALLOWED_IDS)
+#def access_denied(message):
+ #   print(f"⚠️ Bloqueado: {message.from_user.id}")
+#    bot.reply_to(message, "🚫 No tienes permiso para usar este bot.")
 
 # === COMANDOS Y LOGICA ===
 @bot.message_handler(commands=['start'])
