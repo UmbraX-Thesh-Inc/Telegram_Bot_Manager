@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: github-telegram-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: USER_ID_1
+        sync: false
+      - key: USER_ID_2
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_USERNAME
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PORT
+        value: 8080
+    healthCheckPath: /
