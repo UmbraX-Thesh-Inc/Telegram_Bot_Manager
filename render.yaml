@@ -3,7 +3,7 @@ services:
     name: github-telegram-bot
     env: python
     plan: free
-    buildCommand: pip install --upgrade pip setuptools && pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
     startCommand: python main.py
     envVars:
       - key: BOT_TOKEN
@@ -18,6 +18,4 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      - key: PORT
-        value: 8080
     healthCheckPath: /

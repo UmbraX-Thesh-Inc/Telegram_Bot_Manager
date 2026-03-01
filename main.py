@@ -3,7 +3,7 @@ import asyncio
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ConversationHandler
+    MessageHandler, filters, ConversationHandler, ContextTypes
 )
 from config.settings import BOT_TOKEN, ALLOWED_USERS
 from handlers.start import start_handler, help_handler
@@ -25,24 +25,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-def user_filter(update: Update) -> bool:
-    return update.effective_user.id in ALLOWED_USERS
-
-
-async def unauthorized(update: Update, context):
+# --- Handlers async para acceso no autorizado ---
+async def unauthorized(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⛔ *Acceso denegado*\nNo tienes permiso para usar este bot.",
         parse_mode='Markdown'
     )
 
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Conversación cancelada.")
+    return ConversationHandler.END
 
+# --- Filtro de usuarios ---
+def user_filter(update: Update) -> bool:
+    return update.effective_user.id in ALLOWED_USERS
+
+# --- MAIN ---
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     allowed = filters.User(user_id=ALLOWED_USERS)
 
-    # Conversation handler para crear repos
+    # --- Conversaciones ---
     create_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(create_repo_handler, pattern='^create_repo$')],
         states={
@@ -50,65 +54,48 @@ def main():
             REPO_DESC: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, create_repo_handler)],
             REPO_PRIVATE: [CallbackQueryHandler(create_repo_handler, pattern='^(public|private)$')],
         },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para fork
     fork_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(fork_repo_handler, pattern='^fork_repo$')],
-        states={
-            FORK_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, fork_repo_handler)],
-        },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        states={FORK_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, fork_repo_handler)]},
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para upload
     upload_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(upload_handler, pattern='^upload_repo$')],
         states={
             UPLOAD_REPO: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, upload_handler)],
             UPLOAD_FILE: [MessageHandler((filters.Document.ALL | filters.TEXT) & allowed, upload_file_handler)],
         },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para descarga ZIP
     zip_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(download_zip_handler, pattern='^download_zip$')],
-        states={
-            ZIP_REPO: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, download_zip_handler)],
-        },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        states={ZIP_REPO: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, download_zip_handler)]},
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para AI
     ai_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(ai_chat_handler, pattern='^ai_chat$')],
-        states={
-            AI_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, ai_chat_handler)],
-        },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        states={AI_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, ai_chat_handler)]},
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para búsqueda
     search_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(search_repos_handler, pattern='^search_repo$')],
-        states={
-            SEARCH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, search_repos_handler)],
-        },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        states={SEARCH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, search_repos_handler)]},
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para URL download
     url_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(url_download_handler, pattern='^url_download$')],
-        states={
-            URL_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, url_download_handler)],
-        },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        states={URL_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, url_download_handler)]},
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # Conversation handler para edit
     edit_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(edit_repo_handler, pattern='^edit_repo$')],
         states={
@@ -116,13 +103,15 @@ def main():
             EDIT_FILE: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, edit_file_handler)],
             EDIT_CONTENT: [MessageHandler(filters.TEXT & ~filters.COMMAND & allowed, edit_file_handler)],
         },
-        fallbacks=[CommandHandler('cancel', lambda u, c: ConversationHandler.END)]
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
+    # --- Comandos ---
     app.add_handler(CommandHandler('start', start_handler, filters=allowed))
     app.add_handler(CommandHandler('help', help_handler, filters=allowed))
-    app.add_handler(CommandHandler('start', unauthorized))
-    
+    app.add_handler(CommandHandler('start', unauthorized, filters=~allowed))
+
+    # --- Agregar conversaciones ---
     app.add_handler(create_conv)
     app.add_handler(fork_conv)
     app.add_handler(upload_conv)
@@ -132,11 +121,22 @@ def main():
     app.add_handler(url_conv)
     app.add_handler(edit_conv)
 
+    # --- Callbacks ---
     app.add_handler(CallbackQueryHandler(callback_handler))
 
-    logger.info("Bot iniciado...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info("Bot iniciado en modo webhook...")
 
+    # --- Webhook para Render ---
+    import os
+    PORT = int(os.environ.get("PORT", 10000))
+    WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}",
+        allowed_updates=Update.ALL_TYPES
+    )
 
 if __name__ == '__main__':
     main()
